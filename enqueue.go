@@ -41,7 +41,7 @@ func NewEnqueuer(namespace string, pool *redis.Pool) *Enqueuer {
 func (e *Enqueuer) Enqueue(jobName string, args map[string]interface{}) (*Job, error) {
 	job := &Job{
 		Name:       jobName,
-		ID:         jobName,
+		ID:         makeIdentifier(),
 		EnqueuedAt: nowEpochSeconds(),
 		Args:       args,
 	}
@@ -69,7 +69,7 @@ func (e *Enqueuer) Enqueue(jobName string, args map[string]interface{}) (*Job, e
 func (e *Enqueuer) EnqueueIn(jobName string, secondsFromNow int64, args map[string]interface{}) (*ScheduledJob, error) {
 	job := &Job{
 		Name:       jobName,
-		ID:         jobName,
+		ID:         makeIdentifier(),
 		EnqueuedAt: nowEpochSeconds(),
 		Args:       args,
 	}
@@ -111,7 +111,7 @@ func (e *Enqueuer) EnqueueUnique(jobName string, args map[string]interface{}) (*
 
 // EnqueueUniqueIn enqueues a unique job in the scheduled job queue for execution in secondsFromNow seconds. See EnqueueUnique for the semantics of unique jobs.
 func (e *Enqueuer) EnqueueUniqueIn(jobName string, secondsFromNow int64, args map[string]interface{}) (*ScheduledJob, error) {
-	return e.EnqueueUniqueInByKey(jobName, secondsFromNow, args, nil)
+	return e.EnqueueUniqueInByKey(jobName, "", secondsFromNow, args, nil)
 }
 
 // EnqueueUniqueByKey enqueues a job unless a job is already enqueued with the same name and key, updating arguments.
@@ -121,7 +121,7 @@ func (e *Enqueuer) EnqueueUniqueIn(jobName string, secondsFromNow int64, args ma
 // In order to add robustness to the system, jobs are only unique for 24 hours after they're enqueued. This is mostly relevant for scheduled jobs.
 // EnqueueUniqueByKey returns the job if it was enqueued and nil if it wasn't
 func (e *Enqueuer) EnqueueUniqueByKey(jobName string, args map[string]interface{}, keyMap map[string]interface{}) (*Job, error) {
-	enqueue, job, err := e.uniqueJobHelper(jobName, args, keyMap, 0)
+	enqueue, job, err := e.uniqueJobHelper(jobName, "", args, keyMap, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -136,8 +136,8 @@ func (e *Enqueuer) EnqueueUniqueByKey(jobName string, args map[string]interface{
 
 // EnqueueUniqueInByKey enqueues a job in the scheduled job queue that is unique on specified key for execution in secondsFromNow seconds. See EnqueueUnique for the semantics of unique jobs.
 // Subsequent calls with same key will update arguments
-func (e *Enqueuer) EnqueueUniqueInByKey(jobName string, runAt int64, args map[string]interface{}, keyMap map[string]interface{}) (*ScheduledJob, error) {
-	enqueue, job, err := e.uniqueJobHelper(jobName, args, keyMap, runAt)
+func (e *Enqueuer) EnqueueUniqueInByKey(jobName string, jobID string, runAt int64, args map[string]interface{}, keyMap map[string]interface{}) (*ScheduledJob, error) {
+	enqueue, job, err := e.uniqueJobHelper(jobName, jobID, args, keyMap, runAt)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func (e *Enqueuer) addToKnownJobs(conn redis.Conn, jobName string) error {
 
 type enqueueFnType func(*int64) (string, error)
 
-func (e *Enqueuer) uniqueJobHelper(jobName string, args map[string]interface{}, keyMap map[string]interface{}, runAt int64) (enqueueFnType, *Job, error) {
+func (e *Enqueuer) uniqueJobHelper(jobName string, jobID string, args map[string]interface{}, keyMap map[string]interface{}, runAt int64) (enqueueFnType, *Job, error) {
 	useDefaultKeys := false
 	if keyMap == nil {
 		useDefaultKeys = true
@@ -200,11 +200,15 @@ func (e *Enqueuer) uniqueJobHelper(jobName string, args map[string]interface{}, 
 		runAt = nowEpochSeconds() + 30
 	}
 
+	if jobID == "" {
+		jobID = makeIdentifier()
+	}
+
 	fmt.Println("runAt ----------", runAt)
 
 	job := &Job{
 		Name:       jobName,
-		ID:         jobName,
+		ID:         jobID,
 		EnqueuedAt: runAt,
 		Args:       args,
 		Unique:     true,
