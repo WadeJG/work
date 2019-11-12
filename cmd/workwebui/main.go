@@ -15,7 +15,7 @@ import (
 var (
 	redisHostPort  = flag.String("redis", ":6379", "redis hostport")
 	redisDatabase  = flag.String("database", "0", "redis database")
-	redisNamespace = flag.String("ns", "work", "redis namespace")
+	redisNamespace = flag.String("ns", "routine_pool", "redis namespace")
 	webHostPort    = flag.String("listen", ":5040", "hostport to listen for HTTP JSON API")
 )
 

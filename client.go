@@ -482,6 +482,7 @@ func (c *Client) DeleteScheduledJob(scheduledFor int64, jobID string) error {
 
 		if job.Unique {
 			uniqueKey, err := redisKeyUniqueJob(c.namespace, job.Name, job.Args)
+			fmt.Println("UniqueKey ----------", uniqueKey)
 			if err != nil {
 				logError("client.delete_scheduled_job.redis_key_unique_job", err)
 				return err
@@ -527,17 +528,20 @@ func (c *Client) deleteZsetJob(zsetKey string, zscore int64, jobID string) (bool
 	conn := c.pool.Get()
 	defer conn.Close()
 	values, err := redis.Values(script.Do(conn, args...))
+	fmt.Println("deleteZsetJob--------", args)
 	if len(values) != 2 {
 		return false, nil, fmt.Errorf("need 2 elements back from redis command")
 	}
 
+	fmt.Println("jobredis.Values--------", values[0], values[1])
 	cnt, err := redis.Int64(values[0], err)
 	jobBytes, err := redis.Bytes(values[1], err)
 	if err != nil {
 		logError("client.delete_zset_job.do", err)
 		return false, nil, err
 	}
-
+	fmt.Println("jobBytes--------", jobBytes)
+	fmt.Println("cnt -----------", cnt)
 	return cnt > 0, jobBytes, nil
 }
 
